@@ -240,7 +240,12 @@ app.delete('/api/roommates/:name', async (req, res) => {
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on http://0.0.0.0:${PORT}`);
-});
+// 本地运行时才启动 server，Netlify 环境下导出 app
+if (!process.env.NETLIFY && !process.env.LAMBDA_TASK_ROOT) {
+  const PORT = process.env.PORT || 3001;
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+}
+
+module.exports = app;
