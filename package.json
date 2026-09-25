@@ -1,0 +1,11 @@
+{
+  "name": "roommate-status-server",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "undici": "^6.19.0"
+  }
+}
