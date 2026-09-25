@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: roommate-status
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: LARK_APP_ID
+        value: cli_aa23a49276381bb4
+      - key: LARK_APP_SECRET
+        value: 3ki6t8XQZuRPmm3Bq0naXboVD3mgTuDE
