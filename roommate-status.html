@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>室友状态</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    color: #333;
+    overflow-x: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  input { -webkit-user-select: text; user-select: text; }
+
+  /* ===== 通用 ===== */
+  .screen { max-width: 480px; margin: 0 auto; min-height: 100vh; padding: 20px 16px; }
+  .hidden { display: none !important; }
+  .toast {
+    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,0.8); color: #fff; padding: 10px 20px;
+    border-radius: 20px; font-size: 14px; z-index: 9999;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; }
+
+  /* 下拉刷新 */
+  .ptr-indicator {
+    position: fixed; top: 0; left: 0; right: 0; height: 0; overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #fff; background: rgba(102,126,234,0.85);
+    transition: height 0.2s; z-index: 300;
+  }
+  .ptr-indicator.show { height: 44px; }
+  .ptr-indicator .ptr-icon { margin-right: 6px; display: inline-block; }
+
+  /* ===== 设置页 ===== */
+  #setupScreen { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .setup-logo { font-size: 56px; margin-bottom: 8px; }
+  .setup-title { color: #fff; font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+  .setup-sub { color: rgba(255,255,255,0.8); font-size: 14px; margin-bottom: 28px; }
+  .setup-card {
+    background: #fff; border-radius: 20px; padding: 24px 20px;
+    width: 100%; max-width: 360px; box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  .setup-label { font-size: 14px; font-weight: 600; color: #555; margin-bottom: 8px; }
+  .setup-input {
+    width: 100%; padding: 12px 16px; border: 2px solid #e8e8e8;
+    border-radius: 12px; font-size: 16px; outline: none; transition: border-color 0.2s;
+    margin-bottom: 20px;
+  }
+  .setup-input:focus { border-color: #667eea; }
+  .avatar-grid {
+    display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 20px;
+  }
+  .avatar-opt {
+    aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+    font-size: 24px; border-radius: 12px; border: 2px solid #e8e8e8;
+    background: #fafafa; cursor: pointer; transition: all 0.15s;
+  }
+  .avatar-opt:active { transform: scale(0.9); }
+  .avatar-opt.active { border-color: #667eea; background: #667eea15; }
+  .setup-btn {
+    width: 100%; padding: 13px; border: none; border-radius: 12px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(102,126,234,0.4);
+  }
+  .setup-btn:active { transform: scale(0.98); }
+
+  /* ===== 主页 ===== */
+  .user-bar {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.15); backdrop-filter: blur(8px);
+    border-radius: 14px; padding: 10px 14px; margin-bottom: 16px;
+  }
+  .user-bar .avatar {
+    width: 38px; height: 38px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-size: 20px;
+    background: rgba(255,255,255,0.25); flex-shrink: 0;
+  }
+  .user-bar .name { color: #fff; font-size: 16px; font-weight: 600; flex: 1; }
+  .user-bar .edit {
+    background: rgba(255,255,255,0.2); border: none; color: #fff;
+    width: 30px; height: 30px; border-radius: 8px; font-size: 14px; cursor: pointer;
+  }
+  .user-bar .edit:active { background: rgba(255,255,255,0.35); }
+
+  .card {
+    background: #fff; border-radius: 20px; padding: 16px;
+    margin-bottom: 14px; box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  }
+  .card-title {
+    font-size: 15px; font-weight: 600; color: #555; margin-bottom: 12px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .card-title .spacer { flex: 1; }
+  .refresh-btn {
+    background: none; border: none; font-size: 18px; cursor: pointer;
+    padding: 4px 8px; border-radius: 8px; transition: all 0.2s;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .refresh-btn:active { background: #f0f0f0; }
+  .refresh-btn.spinning { animation: spin 0.8s linear infinite; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+  .refresh-text { font-size: 12px; color: #999; font-weight: 400; }
+
+  .status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .status-btn {
+    padding: 12px 6px; border: 2px solid #e8e8e8; border-radius: 14px;
+    background: #fafafa; cursor: pointer; transition: all 0.15s;
+    text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .status-btn:active { transform: scale(0.94); }
+  .status-btn.active { border-color: #667eea; background: linear-gradient(135deg, #667eea15, #764ba215); }
+  .status-emoji { font-size: 26px; }
+  .status-label { font-size: 12px; color: #666; }
+  .status-btn.active .status-label { color: #667eea; font-weight: 600; }
+
+  .roommate-item {
+    display: flex; align-items: center; padding: 12px;
+    background: #f8f9ff; border-radius: 14px; margin-bottom: 8px;
+    transition: all 0.2s; position: relative;
+  }
+  .roommate-item:active { background: #eff0fa; }
+  .roommate-item.me { background: #eef0ff; border: 1px solid #667eea30; }
+  .me-badge { font-size: 10px; background: #667eea; color: #fff; padding: 1px 6px; border-radius: 4px; font-weight: 500; }
+  .roommate-avatar {
+    width: 40px; height: 40px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center; font-size: 20px;
+    margin-right: 10px; flex-shrink: 0;
+  }
+  .roommate-info { flex: 1; min-width: 0; }
+  .roommate-name { font-size: 14px; font-weight: 600; color: #333; }
+  .roommate-meta { font-size: 12px; color: #888; margin-top: 1px; }
+  .roommate-time { font-size: 11px; color: #bbb; }
+  .empty-state { text-align: center; padding: 24px 16px; color: #aaa; font-size: 14px; }
+  .empty-state .emoji { font-size: 36px; display: block; margin-bottom: 8px; }
+
+  .bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: rgba(255,255,255,0.95); backdrop-filter: blur(12px);
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.06);
+    z-index: 100;
+  }
+  .bottom-bar-inner { max-width: 480px; margin: 0 auto; }
+  .update-btn {
+    width: 100%; padding: 13px; border: none; border-radius: 14px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: #fff; font-size: 16px; font-weight: 600; cursor: pointer;
+    box-shadow: 0 4px 16px rgba(102,126,234,0.4); transition: transform 0.1s;
+  }
+  .update-btn:active { transform: scale(0.98); }
+  .update-btn:disabled { opacity: 0.5; }
+  .bottom-spacer { height: 70px; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .roommate-item { animation: fadeIn 0.25s ease; }
+
+  /* 长按删除提示 */
+  .delete-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 200; display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s; pointer-events: none;
+  }
+  .delete-overlay.show { opacity: 1; pointer-events: auto; }
+  .delete-dialog {
+    background: #fff; border-radius: 16px; padding: 20px;
+    width: 260px; text-align: center;
+  }
+  .delete-dialog h3 { font-size: 16px; margin-bottom: 8px; }
+  .delete-dialog p { font-size: 13px; color: #888; margin-bottom: 16px; }
+  .delete-dialog .btns { display: flex; gap: 10px; }
+  .delete-dialog .btn {
+    flex: 1; padding: 10px; border: none; border-radius: 10px;
+    font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .delete-dialog .btn-cancel { background: #f0f0f0; color: #666; }
+  .delete-dialog .btn-confirm { background: #ff6b6b; color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- ===== 设置页 ===== -->
+<div id="setupScreen" class="screen">
+  <div class="setup-logo">🏠</div>
+  <div class="setup-title">室友状态</div>
+  <div class="setup-sub">让室友知道你在做什么</div>
+  <div class="setup-card">
+    <div class="setup-label">你的名字</div>
+    <input type="text" class="setup-input" id="setupName" placeholder="输入你的名字" maxlength="10">
+    <div class="setup-label">选一个头像</div>
+    <div class="avatar-grid" id="avatarGrid"></div>
+    <button class="setup-btn" id="setupBtn">开始使用</button>
+  </div>
+</div>
+
+<!-- ===== 主页 ===== -->
+<div id="mainScreen" class="screen hidden">
+  <div class="user-bar">
+    <div class="avatar" id="userAvatar">🐱</div>
+    <div class="name" id="userName"></div>
+    <button class="edit" id="editBtn">✏️</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📊 选择你的状态</div>
+    <div class="status-grid" id="statusGrid"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      👥 室友们
+      <span class="spacer"></span>
+      <button class="refresh-btn" id="refreshBtn" title="刷新">
+        <span class="refresh-icon">🔄</span>
+        <span class="refresh-text" id="refreshText"></span>
+      </button>
+    </div>
+    <div id="roommateList"></div>
+  </div>
+  <div class="bottom-spacer"></div>
+</div>
+
+<div class="bottom-bar hidden" id="bottomBar">
+  <div class="bottom-bar-inner">
+    <button class="update-btn" id="updateBtn">更新状态</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<div class="ptr-indicator" id="ptrIndicator"><span class="ptr-icon" id="ptrIcon">⬇️</span><span id="ptrText">下拉刷新</span></div>
+
+<div class="delete-overlay" id="deleteOverlay">
+  <div class="delete-dialog">
+    <h3 id="deleteTitle">删除状态</h3>
+    <p id="deleteDesc">确定删除该室友的状态？</p>
+    <div class="btns">
+      <button class="btn btn-cancel" id="deleteCancel">取消</button>
+      <button class="btn btn-confirm" id="deleteConfirm">删除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '/api';
+
+const AVATARS = ['🐱','🐶','🐹','🐰','🦊','🐼','🐯','🦁','🐵','🐸','🐧','🐙'];
+const STATUSES = [
+  { name: '睡觉中', emoji: '😴', color: '#a8e6cf' },
+  { name: '学习中', emoji: '📚', color: '#ffd3b6' },
+  { name: '外出中', emoji: '🚶', color: '#ffaaa5' },
+  { name: '空闲',   emoji: '😊', color: '#dcedc1' },
+  { name: '勿扰',   emoji: '🚫', color: '#ff8b94' },
+  { name: '吃饭中', emoji: '🍜', color: '#ffe5b4' },
+];
+const STATUS_MAP = {};
+STATUSES.forEach(s => STATUS_MAP[s.name] = s);
+
+let myName = '';
+let myAvatar = '🐱';
+let selectedStatus = null;
+let pendingDeleteName = null;
+let isRefreshing = false;
+let lastRefreshText = '';
+
+// 刷新按钮状态
+function setRefreshing(on) {
+  const btn = document.getElementById('refreshBtn');
+  const icon = btn.querySelector('.refresh-icon');
+  if (on) {
+    icon.classList.add('spinning');
+  } else {
+    icon.classList.remove('spinning');
+  }
+}
+
+// 显示"刚刚更新"提示
+function showLastRefreshTime() {
+  const el = document.getElementById('refreshText');
+  if (lastRefreshText) {
+    el.textContent = lastRefreshText;
+    setTimeout(() => { el.textContent = ''; }, 3000);
+  }
+}
+
+// ===== 工具 =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function formatTime(ts) {
+  if (!ts) return '';
+  const d = new Date(ts), now = new Date();
+  const diff = (now - d) / 1000;
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return Math.floor(diff/60) + '分钟前';
+  if (diff < 86400) return Math.floor(diff/3600) + '小时前';
+  return (d.getMonth()+1)+'/'+d.getDate()+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+}
+
+// ===== 渲染头像选择 =====
+function renderAvatarGrid() {
+  const grid = document.getElementById('avatarGrid');
+  grid.innerHTML = AVATARS.map((a, i) =>
+    `<div class="avatar-opt ${i===0?'active':''}" data-avatar="${a}">${a}</div>`
+  ).join('');
+  grid.querySelectorAll('.avatar-opt').forEach(el => {
+    el.addEventListener('click', () => {
+      grid.querySelectorAll('.avatar-opt').forEach(e => e.classList.remove('active'));
+      el.classList.add('active');
+      myAvatar = el.getAttribute('data-avatar');
+    });
+  });
+}
+
+// ===== 渲染状态网格 =====
+function renderStatusGrid() {
+  const grid = document.getElementById('statusGrid');
+  grid.innerHTML = STATUSES.map(s =>
+    `<div class="status-btn" data-status="${s.name}">
+      <span class="status-emoji">${s.emoji}</span>
+      <span class="status-label">${s.name}</span>
+    </div>`
+  ).join('');
+  grid.querySelectorAll('.status-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      grid.querySelectorAll('.status-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedStatus = btn.getAttribute('data-status');
+    });
+  });
+}
+
+// ===== 获取室友列表 =====
+async function fetchRoommates() {
+  try {
+    const r = await fetch(API_BASE + '/roommates');
+    const d = await r.json();
+    return d.roommates || [];
+  } catch { return []; }
+}
+
+// ===== 室友行 DOM 缓存（增量更新用）=====
+const itemMap = new Map(); // name -> { el, status, avatar, updatedAt }
+
+// 创建单个室友行
+function createRoommateItem(r) {
+  const s = STATUS_MAP[r.status] || { emoji: '❓', color: '#e8e8e8' };
+  const avatar = r.avatar || '😊';
+  const isMe = r.name === myName;
+  const el = document.createElement('div');
+  el.className = 'roommate-item' + (isMe ? ' me' : '');
+  el.setAttribute('data-name', r.name);
+  el.innerHTML = `
+    <div class="roommate-avatar" style="background:${s.color}">${avatar}</div>
+    <div class="roommate-info">
+      <div class="roommate-name">${escapeHtml(r.name)}${isMe ? ' <span class="me-badge">我</span>' : ''}</div>
+      <div class="roommate-meta">${s.emoji} ${escapeHtml(r.status)}</div>
+    </div>
+    <div class="roommate-time">${formatTime(r.updatedAt)}</div>`;
+  bindLongPress(el);
+  return el;
+}
+
+// 更新单个室友行的变化字段（不重建 DOM）
+function updateRoommateItem(el, oldData, newData) {
+  if (oldData.status !== newData.status) {
+    const s = STATUS_MAP[newData.status] || { emoji: '❓', color: '#e8e8e8' };
+    el.querySelector('.roommate-meta').textContent = `${s.emoji} ${newData.status}`;
+    el.querySelector('.roommate-avatar').style.background = s.color;
+  }
+  if (oldData.avatar !== newData.avatar) {
+    el.querySelector('.roommate-avatar').textContent = newData.avatar || '😊';
+  }
+  if (oldData.updatedAt !== newData.updatedAt) {
+    el.querySelector('.roommate-time').textContent = formatTime(newData.updatedAt);
+  }
+}
+
+// 长按删除绑定
+function bindLongPress(item) {
+  let timer = null;
+  const start = () => {
+    timer = setTimeout(() => {
+      pendingDeleteName = item.getAttribute('data-name');
+      document.getElementById('deleteTitle').textContent = '删除 ' + pendingDeleteName;
+      document.getElementById('deleteDesc').textContent = '确定删除 ' + pendingDeleteName + ' 的状态？';
+      document.getElementById('deleteOverlay').classList.add('show');
+    }, 500);
+  };
+  const cancel = () => { if (timer) clearTimeout(timer); timer = null; };
+  item.addEventListener('touchstart', start, { passive: true });
+  item.addEventListener('touchend', cancel);
+  item.addEventListener('touchmove', cancel);
+  item.addEventListener('touchcancel', cancel);
+  item.addEventListener('contextmenu', (e) => { e.preventDefault(); start(); });
+}
+
+// ===== 渲染室友列表（增量更新）=====
+async function renderRoommates(showSpinner = false) {
+  if (showSpinner) setRefreshing(true);
+  const list = document.getElementById('roommateList');
+  const roommates = await fetchRoommates();
+
+  // 高亮自己的状态
+  const myRecord = roommates.find(r => r.name === myName);
+  if (myRecord) {
+    selectedStatus = myRecord.status;
+    document.querySelectorAll('.status-btn').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-status') === myRecord.status);
+    });
+  }
+
+  // 排序：自己在最前，其余按时间倒序
+  const sorted = roommates.slice().sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  if (myRecord) {
+    sorted.splice(sorted.indexOf(myRecord), 1);
+    sorted.unshift(myRecord);
+  }
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<div class="empty-state"><span class="emoji">🤷</span>还没有人设置状态</div>';
+    itemMap.clear();
+  } else {
+    const newNames = new Set(sorted.map(r => r.name));
+    // 移除已删除的行
+    for (const [name, info] of itemMap) {
+      if (!newNames.has(name)) {
+        info.el.remove();
+        itemMap.delete(name);
+      }
+    }
+    // 增量更新 + 排序
+    for (let i = 0; i < sorted.length; i++) {
+      const r = sorted[i];
+      const existing = itemMap.get(r.name);
+      if (existing) {
+        // 已存在：只更新变化字段
+        updateRoommateItem(existing.el, existing, r);
+        existing.status = r.status;
+        existing.avatar = r.avatar;
+        existing.updatedAt = r.updatedAt;
+      } else {
+        // 新增：创建新行（带动画）
+        const el = createRoommateItem(r);
+        itemMap.set(r.name, { el, status: r.status, avatar: r.avatar, updatedAt: r.updatedAt });
+        list.appendChild(el);
+      }
+      // 调整到正确位置
+      const el = itemMap.get(r.name).el;
+      const expectedPrev = i > 0 ? itemMap.get(sorted[i - 1].name).el : null;
+      const actualPrev = el.previousElementSibling;
+      if (actualPrev !== expectedPrev) {
+        if (expectedPrev) {
+          list.insertBefore(el, expectedPrev.nextSibling);
+        } else {
+          list.insertBefore(el, list.firstChild);
+        }
+      }
+    }
+  }
+
+  if (showSpinner) {
+    setRefreshing(false);
+    lastRefreshText = '刚刚更新';
+    showLastRefreshTime();
+  }
+}
+
+// ===== 更新状态 =====
+async function updateStatus() {
+  if (!selectedStatus) { showToast('请选择一个状态'); return; }
+  const btn = document.getElementById('updateBtn');
+  btn.disabled = true; btn.textContent = '更新中...';
+  try {
+    const r = await fetch(API_BASE + '/roommates', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: myName, status: selectedStatus, avatar: myAvatar })
+    });
+    const d = await r.json();
+    if (d.success) {
+      showToast('状态已更新 ✓');
+      renderRoommates(true);
+    } else {
+      showToast(d.error || '更新失败');
+    }
+  } catch { showToast('网络错误'); }
+  btn.disabled = false; btn.textContent = '更新状态';
+}
+
+// ===== 进入主界面 =====
+function enterMain() {
+  document.getElementById('setupScreen').classList.add('hidden');
+  document.getElementById('mainScreen').classList.remove('hidden');
+  document.getElementById('bottomBar').classList.remove('hidden');
+  document.getElementById('userAvatar').textContent = myAvatar;
+  document.getElementById('userName').textContent = myName;
+
+  // 清空缓存，重新渲染
+  itemMap.clear();
+  document.getElementById('roommateList').innerHTML = '';
+  renderRoommates();
+
+  // 轮询刷新（8秒一次，平衡及时性和流量）
+  if (window._pollTimer) clearInterval(window._pollTimer);
+  window._pollTimer = setInterval(() => renderRoommates(), 8000);
+
+  // 页面从后台切回前台时立即刷新（只绑定一次）
+  if (!window._visBound) {
+    window._visBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        renderRoommates();
+      }
+    });
+  }
+}
+
+// ===== 回到设置页 =====
+function backToSetup() {
+  document.getElementById('setupScreen').classList.remove('hidden');
+  document.getElementById('mainScreen').classList.add('hidden');
+  document.getElementById('bottomBar').classList.add('hidden');
+  document.getElementById('setupName').value = myName;
+  // 预选当前头像
+  document.querySelectorAll('.avatar-opt').forEach(e => {
+    e.classList.toggle('active', e.getAttribute('data-avatar') === myAvatar);
+  });
+}
+
+// ===== 初始化 =====
+function init() {
+  renderAvatarGrid();
+  renderStatusGrid();
+
+  // 加载本地存储
+  myName = localStorage.getItem('roommate_my_name') || '';
+  myAvatar = localStorage.getItem('roommate_my_avatar') || '🐱';
+
+  // 设置页按钮
+  document.getElementById('setupBtn').addEventListener('click', () => {
+    const name = document.getElementById('setupName').value.trim();
+    if (!name) { showToast('请输入名字'); return; }
+    myName = name;
+    localStorage.setItem('roommate_my_name', name);
+    localStorage.setItem('roommate_my_avatar', myAvatar);
+    enterMain();
+  });
+
+  // 编辑按钮
+  document.getElementById('editBtn').addEventListener('click', backToSetup);
+
+  // 更新按钮
+  document.getElementById('updateBtn').addEventListener('click', updateStatus);
+
+  // 手动刷新按钮
+  document.getElementById('refreshBtn').addEventListener('click', () => {
+    renderRoommates(true);
+  });
+
+  // 下拉刷新
+  let ptrStartY = 0;
+  let ptrPulling = false;
+  const ptrIndicator = document.getElementById('ptrIndicator');
+  const ptrIcon = document.getElementById('ptrIcon');
+  const ptrText = document.getElementById('ptrText');
+
+  document.addEventListener('touchstart', (e) => {
+    if (window.scrollY <= 0) {
+      ptrStartY = e.touches[0].clientY;
+      ptrPulling = true;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', (e) => {
+    if (!ptrPulling) return;
+    const diff = e.touches[0].clientY - ptrStartY;
+    if (diff > 0 && window.scrollY <= 0) {
+      ptrIndicator.classList.add('show');
+      if (diff > 60) {
+        ptrIcon.textContent = '⬆️';
+        ptrText.textContent = '释放立即刷新';
+      } else {
+        ptrIcon.textContent = '⬇️';
+        ptrText.textContent = '下拉刷新';
+      }
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', (e) => {
+    if (!ptrPulling) return;
+    ptrPulling = false;
+    const diff = (e.changedTouches[0].clientY) - ptrStartY;
+    ptrIndicator.classList.remove('show');
+    if (diff > 60) {
+      renderRoommates(true);
+      showToast('已刷新');
+    }
+  });
+
+  // 删除弹窗
+  document.getElementById('deleteCancel').addEventListener('click', () => {
+    document.getElementById('deleteOverlay').classList.remove('show');
+    pendingDeleteName = null;
+  });
+  document.getElementById('deleteConfirm').addEventListener('click', async () => {
+    if (!pendingDeleteName) return;
+    try {
+      await fetch(API_BASE + '/roommates/' + encodeURIComponent(pendingDeleteName), { method: 'DELETE' });
+      showToast('已删除');
+      renderRoommates();
+    } catch { showToast('删除失败'); }
+    document.getElementById('deleteOverlay').classList.remove('show');
+    pendingDeleteName = null;
+  });
+
+  // 如果已设置名字，直接进主界面
+  if (myName) {
+    enterMain();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
