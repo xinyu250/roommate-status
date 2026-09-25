@@ -1,16 +1,10 @@
 [build]
-  command = "npm install"
-  publish = "."
+  command = "npm run build"
+  publish = "dist"
 
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-
-# 将 /api/* 路由到 Netlify 函数
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/api/:splat"
-  status = 200
 
 # 首页指向 roommate-status.html
 [[redirects]]

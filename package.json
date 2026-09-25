@@ -2,6 +2,8 @@
   "name": "roommate-status-server",
   "version": "1.0.0",
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
     "start": "node index.js"
   },
   "dependencies": {

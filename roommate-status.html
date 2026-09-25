@@ -620,7 +620,9 @@ function init() {
   document.getElementById('deleteConfirm').addEventListener('click', async () => {
     if (!pendingDeleteName) return;
     try {
-      await fetch(API_BASE + '/roommates/' + encodeURIComponent(pendingDeleteName), { method: 'DELETE' });
+      const response = await fetch(API_BASE + '/roommates/' + encodeURIComponent(pendingDeleteName), { method: 'DELETE' });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error('删除失败');
       showToast('已删除');
       renderRoommates();
     } catch { showToast('删除失败'); }
